@@ -1,0 +1,4 @@
+python-telegram-bot 
+pytube 
+pydub
+yt-dlp
