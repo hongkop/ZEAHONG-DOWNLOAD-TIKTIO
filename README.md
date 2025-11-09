@@ -1,8 +1,15 @@
-# 1. Install Requirements
-`pip install -r requirements.txt`
+# Telegram TikTok Downloader Bot
 
-# 2. Fill your telegram token where is:
-`TOKEN="YOUR TELEGRAM TOKEN HERE"`
+A Telegram bot that can download TikTok videos and audio.
 
-# 2. Run
-`python main.py`
+## Features
+- Download TikTok videos
+- Extract audio from TikTok videos as MP3
+- Simple inline keyboard interface
+- Automatic cleanup after sending files
+
+## Installation
+
+1. Install Requirements
+```bash
+pip install -r requirements.txt
