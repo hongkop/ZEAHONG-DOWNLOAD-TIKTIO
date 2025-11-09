@@ -1,4 +1,2 @@
-python-telegram-bot 
-pytube 
-pydub
+python-telegram-bot
 yt-dlp
