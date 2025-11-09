@@ -7,6 +7,7 @@ A Telegram bot that can download TikTok videos and audio.
 - Extract audio from TikTok videos as MP3
 - Simple inline keyboard interface
 - Automatic cleanup after sending files
+- Support for various TikTok URL formats
 
 ## Installation
 
