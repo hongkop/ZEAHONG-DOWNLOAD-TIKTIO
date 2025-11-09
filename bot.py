@@ -1,7 +1,6 @@
 import os
 import logging
 import re
-import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 from yt_dlp import YoutubeDL
@@ -12,14 +11,14 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-# Get token from environment variable (more secure)
+# Get token from environment variable
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '8502597211:AAHWTdyQIayG60dbJ_6x9J1oDhnWDgfiiPg')
 
 DOWNLOAD_FOLDER = './downloads'
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text('សួរស្អី! សូមផ្ញើរ Link TikTok ដែលអ្នកចង់ Download 😁')
+    await update.message.reply_text('Hello! Send me a TikTok link to download 😊')
 
 def is_tiktok_url(url: str) -> bool:
     """Check if the URL is a valid TikTok URL"""
@@ -50,11 +49,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await update.message.reply_text(
-            "ជម្រើសរបស់អ្នក៖ តើអ្នកចង់ទាញយកជា MP3 ឬ Video?",
+            "Choose your option: Download as MP3 or Video?",
             reply_markup=reply_markup
         )
     else:
-        await update.message.reply_text("សូមផ្តល់ឲ្យតែ Link TikTok ត្រឹមត្រូវ។")
+        await update.message.reply_text("Please provide a valid TikTok link.")
 
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
@@ -64,34 +63,34 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     tiktok_url = context.user_data.get('tiktok_url')
     
     if not tiktok_url:
-        await query.edit_message_text("មានបញ្ហា! សូមផ្ញើ់ Link ម្តងទៀត។")
+        await query.edit_message_text("Error! Please send the link again.")
         return
     
-    await query.edit_message_text(f"⏳ កំពុងទាញយក... {choice.upper()}")
+    await query.edit_message_text(f"⏳ Downloading... {choice.upper()}")
     
     try:
         if choice == "mp3":
             success = await download_audio(context, query.message.chat_id, tiktok_url)
             if success:
-                await query.edit_message_text("✅ ទាញយក MP3 បានជោគជ័យ!")
+                await query.edit_message_text("✅ MP3 downloaded successfully!")
             else:
-                await query.edit_message_text("❌ មានបញ្ហាក្នុងពេលទាញយក MP3!")
+                await query.edit_message_text("❌ Failed to download MP3!")
         elif choice == "video":
             success = await download_video(context, query.message.chat_id, tiktok_url, quality='best[height<=480]')
             if success:
-                await query.edit_message_text("✅ ទាញយក Video បានជោគជ័យ!")
+                await query.edit_message_text("✅ Video downloaded successfully!")
             else:
-                await query.edit_message_text("❌ មានបញ្ហាក្នុងពេលទាញយក Video!")
+                await query.edit_message_text("❌ Failed to download Video!")
         elif choice == "hd_video":
             success = await download_video(context, query.message.chat_id, tiktok_url, quality='best')
             if success:
-                await query.edit_message_text("✅ ទាញយក HD Video បានជោគជ័យ!")
+                await query.edit_message_text("✅ HD Video downloaded successfully!")
             else:
-                await query.edit_message_text("❌ មានបញ្ហាក្នុងពេលទាញយក HD Video!")
+                await query.edit_message_text("❌ Failed to download HD Video!")
             
     except Exception as e:
         logging.error(f"Error processing {choice}: {e}")
-        await query.edit_message_text("❌ មានបញ្ហាក្នុងពេលទាញយក! សូមព្យាយាមម្តងទៀត។")
+        await query.edit_message_text("❌ Download error! Please try again.")
 
 async def download_audio(context: ContextTypes.DEFAULT_TYPE, chat_id: int, tiktok_url: str) -> bool:
     """Download TikTok video as MP3"""
@@ -105,7 +104,6 @@ async def download_audio(context: ContextTypes.DEFAULT_TYPE, chat_id: int, tikto
                 'preferredquality': '192',
             }],
             'quiet': True,
-            'no_warnings': True,
         }
 
         with YoutubeDL(ydl_opts) as ydl:
@@ -113,17 +111,13 @@ async def download_audio(context: ContextTypes.DEFAULT_TYPE, chat_id: int, tikto
             mp3_file_path = ydl.prepare_filename(info_dict)
             mp3_file_path = os.path.splitext(mp3_file_path)[0] + '.mp3'
 
-        # Clean filename
-        safe_filename = re.sub(r'[^\w\-_. ]', '', os.path.basename(mp3_file_path))
-        
         # Send the MP3 file to the user
         with open(mp3_file_path, 'rb') as audio_file:
             await context.bot.send_audio(
                 chat_id=chat_id, 
                 audio=audio_file,
                 title=info_dict.get('title', 'TikTok Audio')[:64],
-                performer=info_dict.get('uploader', 'TikTok')[:64],
-                filename=safe_filename
+                performer=info_dict.get('uploader', 'TikTok')[:64]
             )
 
         # Clean up
@@ -142,7 +136,6 @@ async def download_video(context: ContextTypes.DEFAULT_TYPE, chat_id: int, tikto
             'format': quality,
             'outtmpl': os.path.join(DOWNLOAD_FOLDER, '%(title).100s.%(ext)s'),
             'quiet': True,
-            'no_warnings': True,
         }
 
         with YoutubeDL(ydl_opts) as ydl:
@@ -179,16 +172,12 @@ async def download_video(context: ContextTypes.DEFAULT_TYPE, chat_id: int, tikto
         return False
 
 def main() -> None:
-    # Create application
     application = ApplicationBuilder().token(TOKEN).build()
 
-    # Add handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     application.add_handler(CallbackQueryHandler(handle_callback))
 
-    # Start the bot
-    logging.info("Bot is starting...")
     application.run_polling()
 
 if __name__ == '__main__':
