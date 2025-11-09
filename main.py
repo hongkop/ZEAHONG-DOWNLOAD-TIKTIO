@@ -7,7 +7,7 @@ from yt_dlp import YoutubeDL
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-TOKEN = "8502597211:AAHWTdyQIayG60dbJ_6x9J1oDhnWDgfiiPg"
+TOKEN = "8438612815:AAEzGOX0RMAvh4EHXYis7ZmrN1CRZcUQNCU"
 
 DOWNLOAD_FOLDER = './'
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
