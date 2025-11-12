@@ -14,11 +14,10 @@ TOKEN = "8438612815:AAEzGOX0RMAvh4EHXYis7ZmrN1CRZcUQNCU"
 DOWNLOAD_FOLDER = './downloads/'
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
-# TikTok API endpoints (public APIs)
+# TikTok API endpoints
 TIKTOK_APIS = [
     "https://www.tikwm.com/api/",
     "https://tikdown.org/api/",
-    "https://tiktok-downloader-download-tiktok-videos-without-watermark.p.rapidapi.com/video/index",
 ]
 
 def extract_tiktok_url(text: str) -> str:
@@ -71,16 +70,6 @@ def get_tiktok_video_data(url: str):
                     data = response.json()
                     if 'video' in data:
                         return data
-            
-            elif 'rapidapi.com' in api_url:
-                headers_rapid = {
-                    'X-RapidAPI-Key': 'your-rapidapi-key',  # You might need to get a free key
-                    'X-RapidAPI-Host': 'tiktok-downloader-download-tiktok-videos-without-watermark.p.rapidapi.com'
-                }
-                params = {'url': url}
-                response = requests.get(api_url, headers=headers_rapid, params=params, timeout=30)
-                if response.status_code == 200:
-                    return response.json()
                     
         except Exception as e:
             logging.error(f"API {api_url} failed: {e}")
@@ -124,14 +113,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if tiktok_url:
         context.user_data['tiktok_url'] = tiktok_url
         
+        # Create inline keyboard for download quality options
         keyboard = [
-            [InlineKeyboardButton("📥 Download MP3", callback_data="mp3")],
-            [InlineKeyboardButton("🎬 Download Video", callback_data="video")]
+            [InlineKeyboardButton("📥 Download Simple", callback_data="simple")],
+            [InlineKeyboardButton("🎬 Download HD", callback_data="hd")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await update.message.reply_text(
-            f"✅ រកឃើញ Link TikTok!\n\nជម្រើសរបស់អ្នក៖ តើអ្នកចង់ទាញយកជា MP3 ឬ Video?",
+            f"✅ រកឃើញ Link TikTok!\n\nជម្រើសរបស់អ្នក៖ តើអ្នកចង់ទាញយកជា Simple ឬ HD?",
             reply_markup=reply_markup
         )
     else:
@@ -153,7 +143,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await query.edit_message_text("❌ មានបញ្ហា! សូមផ្ញើ់ Link ម្ដងទៀត។")
         return
     
-    await query.edit_message_text(f"⏳ កំពុងទាញយក TikTok {choice.upper()}...\nសូមមានអត្ថាចាំបន្ដិច!")
+    quality_text = "Simple" if choice == "simple" else "HD"
+    await query.edit_message_text(f"⏳ កំពុងទាញយក TikTok {quality_text}...\nសូមមានអត្ថាចាំបន្ដិច!")
     
     try:
         # Get video data from TikTok API
@@ -163,69 +154,29 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             await query.edit_message_text("❌ មិនអាចទាញយកព័ត៌មានវីដេអូបានទេ។ សូមព្យាយាមម្ដងទៀត។")
             return
         
-        if choice == "mp3":
-            success = await download_and_send_audio(context, query.message.chat_id, video_data)
+        if choice == "simple":
+            success = await download_and_send_simple(context, query.message.chat_id, video_data)
             if success:
-                await query.edit_message_text("✅ ទាញយក MP3 បានជោគជ័យ!")
+                await query.edit_message_text("✅ ទាញយក Simple បានជោគជ័យ!")
             else:
-                await query.edit_message_text("❌ ទាញយក MP3 មិនបានជោគជ័យ! សូមព្យាយាមម្ដងទៀត។")
+                await query.edit_message_text("❌ ទាញយក Simple មិនបានជោគជ័យ! សូមព្យាយាមម្ដងទៀត។")
                 
-        elif choice == "video":
-            success = await download_and_send_video(context, query.message.chat_id, video_data)
+        elif choice == "hd":
+            success = await download_and_send_hd(context, query.message.chat_id, video_data)
             if success:
-                await query.edit_message_text("✅ ទាញយក Video បានជោគជ័យ!")
+                await query.edit_message_text("✅ ទាញយក HD បានជោគជ័យ!")
             else:
-                await query.edit_message_text("❌ ទាញយក Video មិនបានជោគជ័យ! សូមព្យាយាមម្ដងទៀត។")
+                await query.edit_message_text("❌ ទាញយក HD មិនបានជោគជ័យ! សូមព្យាយាមម្ដងទៀត។")
             
     except Exception as e:
         logging.error(f"Error processing {choice}: {e}")
         await query.edit_message_text("❌ មានបញ្ហាក្នុងពេលទាញយក! សូមព្យាយាមម្ដងទៀត។")
 
-async def download_and_send_audio(context: ContextTypes.DEFAULT_TYPE, chat_id: int, video_data: dict) -> bool:
-    """Download and send TikTok audio"""
+async def download_and_send_simple(context: ContextTypes.DEFAULT_TYPE, chat_id: int, video_data: dict) -> bool:
+    """Download and send TikTok video in simple quality"""
     try:
-        # For now, we'll send the video without watermark and let Telegram handle audio extraction
-        # In a more advanced version, you could use ffmpeg to extract audio
-        
-        video_url = video_data.get('play') or video_data.get('video') or video_data.get('wmplay')
-        if not video_url:
-            # Try to find video URL in nested data
-            for key, value in video_data.items():
-                if isinstance(value, dict) and 'play' in value:
-                    video_url = value['play']
-                    break
-        
-        if not video_url:
-            logging.error("No video URL found in data")
-            return False
-        
-        # Download video
-        filename = os.path.join(DOWNLOAD_FOLDER, f"tiktok_audio_{chat_id}.mp4")
-        if download_tiktok_video(video_url, filename):
-            # Send as video (Telegram will show it with audio)
-            with open(filename, 'rb') as video_file:
-                await context.bot.send_video(
-                    chat_id=chat_id,
-                    video=video_file,
-                    caption="🎵 TikTok Audio",
-                    supports_streaming=True
-                )
-            # Clean up
-            if os.path.exists(filename):
-                os.remove(filename)
-            return True
-            
-    except Exception as e:
-        logging.error(f"Error in download_and_send_audio: {e}")
-    
-    return False
-
-async def download_and_send_video(context: ContextTypes.DEFAULT_TYPE, chat_id: int, video_data: dict) -> bool:
-    """Download and send TikTok video"""
-    try:
-        # Get video URL (prefer without watermark)
+        # Get standard quality video URL
         video_url = (video_data.get('play') or 
-                    video_data.get('hdplay') or 
                     video_data.get('video') or 
                     video_data.get('wmplay'))
         
@@ -233,7 +184,7 @@ async def download_and_send_video(context: ContextTypes.DEFAULT_TYPE, chat_id: i
             # Try to find video URL in nested data
             for key, value in video_data.items():
                 if isinstance(value, dict):
-                    video_url = value.get('play') or value.get('hdplay')
+                    video_url = value.get('play') or value.get('video')
                     if video_url:
                         break
         
@@ -242,10 +193,10 @@ async def download_and_send_video(context: ContextTypes.DEFAULT_TYPE, chat_id: i
             return False
         
         # Download video
-        filename = os.path.join(DOWNLOAD_FOLDER, f"tiktok_video_{chat_id}.mp4")
+        filename = os.path.join(DOWNLOAD_FOLDER, f"tiktok_simple_{chat_id}.mp4")
         if download_tiktok_video(video_url, filename):
             # Get title/description
-            title = video_data.get('title') or 'TikTok Video'
+            title = video_data.get('title') or 'TikTok Video - Simple Quality'
             if isinstance(title, str) and len(title) > 200:
                 title = title[:200] + '...'
             
@@ -263,7 +214,53 @@ async def download_and_send_video(context: ContextTypes.DEFAULT_TYPE, chat_id: i
             return True
             
     except Exception as e:
-        logging.error(f"Error in download_and_send_video: {e}")
+        logging.error(f"Error in download_and_send_simple: {e}")
+    
+    return False
+
+async def download_and_send_hd(context: ContextTypes.DEFAULT_TYPE, chat_id: int, video_data: dict) -> bool:
+    """Download and send TikTok video in HD quality"""
+    try:
+        # Get HD quality video URL
+        video_url = (video_data.get('hdplay') or 
+                    video_data.get('play') or 
+                    video_data.get('video'))
+        
+        if not video_url:
+            # Try to find HD video URL in nested data
+            for key, value in video_data.items():
+                if isinstance(value, dict):
+                    video_url = value.get('hdplay') or value.get('play')
+                    if video_url:
+                        break
+        
+        if not video_url:
+            logging.error("No HD video URL found in data")
+            return False
+        
+        # Download video
+        filename = os.path.join(DOWNLOAD_FOLDER, f"tiktok_hd_{chat_id}.mp4")
+        if download_tiktok_video(video_url, filename):
+            # Get title/description
+            title = video_data.get('title') or 'TikTok Video - HD Quality'
+            if isinstance(title, str) and len(title) > 200:
+                title = title[:200] + '...'
+            
+            # Send video
+            with open(filename, 'rb') as video_file:
+                await context.bot.send_video(
+                    chat_id=chat_id,
+                    video=video_file,
+                    caption=title,
+                    supports_streaming=True
+                )
+            # Clean up
+            if os.path.exists(filename):
+                os.remove(filename)
+            return True
+            
+    except Exception as e:
+        logging.error(f"Error in download_and_send_hd: {e}")
     
     return False
 
